@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Dashboard</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/driver_dashboard.css' %}">
+</head>
+<body>
+    <div class="topbar">
+        <div>
+            <h1>Driver Dashboard</h1>
+            <p>Accept patient bookings and keep your live location updated.</p>
+        </div>
+        <div class="topbar-actions">
+            <a class="link-btn" href="{% url 'driver_dashboard' %}">Refresh</a>
+            {% if request.user.is_staff or request.user.is_superuser %}
+                <a class="link-btn" href="{% url 'admin:index' %}">Django Admin</a>
+            {% endif %}
+            <a class="link-btn" href="{% url 'logout' %}">Logout</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <main class="grid-layout">
+        <section class="panel">
+            <h2>Your Profile</h2>
+            <p><strong>Name:</strong> {{ request.user.username }}</p>
+            <p><strong>Phone:</strong> {{ driver_profile.phone|default:'N/A' }}</p>
+            <p><strong>Vehicle:</strong> {{ driver_profile.vehicle_number|default:'N/A' }}</p>
+            <p><strong>Current Location:</strong> {{ driver_profile.current_location|default:'Not set' }}</p>
+
+            <form method="post" action="{% url 'update_driver_location' %}" class="form-grid compact">
+                {% csrf_token %}
+                <label>
+                    Update Current Location
+                    <input type="text" name="current_location" value="{{ driver_profile.current_location }}" placeholder="Enter your current location">
+                </label>
+                <button type="submit" class="primary-btn">Save Location</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Pending Bookings</h2>
+            {% for booking in pending_bookings %}
+                <article class="booking-card">
+                    <div class="booking-head">
+                        <strong>#{{ booking.id }}</strong>
+                        <span class="status pending">Pending</span>
+                    </div>
+                    <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
+                    <p><strong>Phone:</strong> {{ booking.patient_phone|default:'N/A' }}</p>
+                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
+                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
+                    <form method="post" action="{% url 'accept_booking' booking.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="accept-btn">Accept Booking</button>
+                    </form>
+                </article>
+            {% empty %}
+                <p class="muted">No pending bookings right now.</p>
+            {% endfor %}
+        </section>
+
+        <section class="panel full-width">
+            <h2>Accepted Bookings</h2>
+            {% for booking in my_bookings %}
+                <article class="booking-card">
+                    <div class="booking-head">
+                        <strong>#{{ booking.id }}</strong>
+                        <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+                    </div>
+                    <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
+                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
+                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
+                    <p><strong>Live Location:</strong> {{ booking.current_location|default:'Not updated yet' }}</p>
+                </article>
+            {% empty %}
+                <p class="muted">You have not accepted any bookings yet.</p>
+            {% endfor %}
+        </section>
+    </main>
+</body>
+</html>

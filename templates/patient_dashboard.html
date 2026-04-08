@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Dashboard</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/patient_dashboard.css' %}">
+</head>
+<body>
+    <div class="topbar">
+        <div>
+            <h1>Patient Dashboard</h1>
+            <p>Book an ambulance first. When a driver accepts, their details appear here.</p>
+        </div>
+        <div class="topbar-actions">
+            <a class="link-btn" href="{% url 'patient_dashboard' %}">Refresh</a>
+            {% if request.user.is_staff or request.user.is_superuser %}
+                <a class="link-btn" href="{% url 'admin:index' %}">Django Admin</a>
+            {% endif %}
+            <a class="link-btn" href="{% url 'logout' %}">Logout</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message {{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <main class="grid-layout">
+        <section class="panel">
+            <h2>New Booking</h2>
+            <form method="post" class="form-grid">
+                {% csrf_token %}
+                <label>
+                    Pickup Address
+                    <input type="text" name="pickup_address" required>
+                </label>
+                <label>
+                    Destination
+                    <input type="text" name="destination" required>
+                </label>
+                <label>
+                    Phone Number
+                    <input type="text" name="patient_phone">
+                </label>
+                <label>
+                    Ambulance Type
+                    <select name="ambulance_type">
+                        <option value="basic">Basic Life Support</option>
+                        <option value="advanced">Advanced Life Support</option>
+                        <option value="transfer">Inter-Hospital Transfer</option>
+                    </select>
+                </label>
+                <button type="submit" class="primary-btn">Book Ambulance</button>
+            </form>
+        </section>
+
+        <section class="panel">
+            <h2>Your Bookings</h2>
+            {% for booking in bookings %}
+                <article class="booking-card">
+                    <div class="booking-head">
+                        <strong>#{{ booking.id }}</strong>
+                        <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+                    </div>
+                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
+                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
+                    <p><strong>Ambulance:</strong> {{ booking.get_ambulance_type_display }}</p>
+                    {% if booking.driver %}
+                        <div class="driver-info">
+                            <p><strong>Driver:</strong> {{ booking.driver.username }}</p>
+                            <p><strong>Email:</strong> {{ booking.driver.email }}</p>
+                            <p><strong>Driver Location:</strong> {{ booking.current_location|default:'Updating soon' }}</p>
+                            {% if booking.driver.driver_profile %}
+                                <p><strong>Phone:</strong> {{ booking.driver.driver_profile.phone|default:'N/A' }}</p>
+                                <p><strong>Vehicle:</strong> {{ booking.driver.driver_profile.vehicle_number|default:'N/A' }}</p>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                        <p class="muted">Waiting for a driver to accept this booking.</p>
+                    {% endif %}
+                </article>
+            {% empty %}
+                <p class="muted">No bookings yet.</p>
+            {% endfor %}
+        </section>
+    </main>
+</body>
+</html>

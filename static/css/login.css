@@ -89,6 +89,43 @@ input {
 	width: 100%;
 }
 
+.signin-note {
+	font-size: 12px;
+	line-height: 1.4;
+	margin: 0 0 12px;
+	color: #666;
+	max-width: 240px;
+}
+
+.role-picker {
+	display: flex;
+	gap: 12px;
+	width: 100%;
+	margin: 8px 0;
+}
+
+.role-option {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	padding: 12px 14px;
+	border-radius: 14px;
+	border: 1px solid #ddd;
+	background: #f8f8f8;
+	cursor: pointer;
+	font-size: 13px;
+	font-weight: 600;
+	color: #333;
+}
+
+.role-option input {
+	width: auto;
+	margin: 0;
+	accent-color: #c962a3;
+}
+
 .container {
 	background-color: #fff;
 	border-radius: 10px;

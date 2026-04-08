@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     {% load static %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}"
+        <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
 
@@ -20,7 +20,18 @@
             <i class="fa-solid fa-truck-medical"></i> Swift Ambulance
         </div>
         <nav>
-            <a href="{% url 'login' %}" class="btn outline-btn"><i class="fas fa-user"></i> Login</a>
+            {% if user.is_authenticated %}
+                {% if user.is_staff or user.is_superuser %}
+                    <a href="{% url 'admin:index' %}" class="btn outline-btn"><i class="fas fa-user-shield"></i> Django Admin</a>
+                {% elif user.driver_profile %}
+                    <a href="{% url 'driver_dashboard' %}" class="btn outline-btn"><i class="fas fa-user"></i> Driver Dashboard</a>
+                {% else %}
+                    <a href="{% url 'patient_dashboard' %}" class="btn outline-btn"><i class="fas fa-user"></i> Patient Dashboard</a>
+                {% endif %}
+                <a href="{% url 'logout' %}" class="btn outline-btn"><i class="fas fa-right-from-bracket"></i> Logout</a>
+            {% else %}
+                <a href="{% url 'login' %}" class="btn outline-btn"><i class="fas fa-user"></i> Login</a>
+            {% endif %}
         </nav>
     </header>
 
@@ -109,7 +120,7 @@
     <section class="cta-banner animate-on-scroll">
         <h2>Don't Wait in an Emergency</h2>
         <p>Register now so you are prepared when seconds matter.</p>
-        <a href="login.html" class="btn primary-btn btn-large">Create Your Account Today</a>
+        <a href="{% url 'login' %}" class="btn primary-btn btn-large">Create Your Account Today</a>
     </section>
 
     <footer>
