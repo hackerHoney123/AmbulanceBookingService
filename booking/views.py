@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import Group, User
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -50,7 +51,6 @@ def signup_view(request):
         role = request.POST.get('role', 'patient')
         phone = request.POST.get('phone', '').strip()
         vehicle_number = request.POST.get('vehicle_number', '').strip()
-        current_location = request.POST.get('current_location', '').strip()
 
         if not username or not email or not password:
             messages.error(request, 'Please fill in all required fields')
@@ -70,7 +70,6 @@ def signup_view(request):
                 user=user,
                 phone=phone,
                 vehicle_number=vehicle_number,
-                current_location=current_location,
             )
             drivers_group, _ = Group.objects.get_or_create(name='drivers')
             user.groups.add(drivers_group)
@@ -121,8 +120,28 @@ def patient_dashboard(request):
             messages.success(request, 'Booking submitted successfully. Waiting for driver acceptance.')
             return redirect('patient_dashboard')
 
-    bookings = Booking.objects.filter(patient=request.user).select_related('driver').order_by('-created_at')
-    return render(request, 'patient_dashboard.html', {'bookings': bookings})
+    status_filter = request.GET.get('status', 'all')
+    bookings_qs = Booking.objects.filter(patient=request.user).select_related('driver').order_by('-created_at')
+    if status_filter in {Booking.STATUS_PENDING, Booking.STATUS_ACCEPTED, Booking.STATUS_COMPLETED}:
+        bookings_qs = bookings_qs.filter(status=status_filter)
+
+    all_bookings = Booking.objects.filter(patient=request.user)
+    stats = {
+        'total': all_bookings.count(),
+        'pending': all_bookings.filter(status=Booking.STATUS_PENDING).count(),
+        'accepted': all_bookings.filter(status=Booking.STATUS_ACCEPTED).count(),
+        'completed': all_bookings.filter(status=Booking.STATUS_COMPLETED).count(),
+    }
+
+    return render(
+        request,
+        'patient_dashboard.html',
+        {
+            'bookings': bookings_qs,
+            'stats': stats,
+            'status_filter': status_filter,
+        },
+    )
 
 
 @login_required(login_url='login')
@@ -136,6 +155,13 @@ def driver_dashboard(request):
     driver_profile = request.user.driver_profile
     pending_bookings = Booking.objects.filter(status=Booking.STATUS_PENDING).select_related('patient').order_by('-created_at')
     my_bookings = Booking.objects.filter(driver=request.user).select_related('patient').order_by('-created_at')
+    active_bookings = my_bookings.filter(status=Booking.STATUS_ACCEPTED)
+    completed_bookings = my_bookings.filter(status=Booking.STATUS_COMPLETED)
+    stats = {
+        'pending_pool': pending_bookings.count(),
+        'active': active_bookings.count(),
+        'completed': completed_bookings.count(),
+    }
 
     return render(
         request,
@@ -144,8 +170,46 @@ def driver_dashboard(request):
             'driver_profile': driver_profile,
             'pending_bookings': pending_bookings,
             'my_bookings': my_bookings,
+            'active_bookings': active_bookings,
+            'completed_bookings': completed_bookings,
+            'stats': stats,
         },
     )
+
+
+@login_required(login_url='login')
+def cancel_booking(request, booking_id):
+    if request.method != 'POST':
+        return redirect('patient_dashboard')
+
+    booking = get_object_or_404(Booking, id=booking_id, patient=request.user)
+    if booking.status != Booking.STATUS_PENDING:
+        messages.error(request, 'Only pending bookings can be cancelled')
+        return redirect('patient_dashboard')
+
+    booking.delete()
+    messages.success(request, 'Booking cancelled successfully')
+    return redirect('patient_dashboard')
+
+
+@login_required(login_url='login')
+def complete_booking(request, booking_id):
+    if request.method != 'POST':
+        return redirect('driver_dashboard')
+
+    if not _is_driver(request.user):
+        messages.error(request, 'Only drivers can complete bookings')
+        return redirect('patient_dashboard')
+
+    booking = get_object_or_404(Booking, id=booking_id, driver=request.user)
+    if booking.status != Booking.STATUS_ACCEPTED:
+        messages.error(request, 'Only accepted bookings can be marked completed')
+        return redirect('driver_dashboard')
+
+    booking.status = Booking.STATUS_COMPLETED
+    booking.save(update_fields=['status', 'updated_at'])
+    messages.success(request, f'Booking #{booking.id} marked as completed')
+    return redirect('driver_dashboard')
 
 
 @login_required(login_url='login')
@@ -173,17 +237,33 @@ def accept_booking(request, booking_id):
 @login_required(login_url='login')
 def update_driver_location(request):
     if not _is_driver(request.user):
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'ok': False, 'error': 'Only drivers can update location'}, status=403)
         messages.error(request, 'Only drivers can update location')
         return redirect('patient_dashboard')
 
     if request.method != 'POST':
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
         return redirect('driver_dashboard')
 
     current_location = request.POST.get('current_location', '').strip()
+    lat = request.POST.get('latitude', '').strip()
+    lng = request.POST.get('longitude', '').strip()
+    if lat and lng:
+        current_location = f'Lat {lat}, Lng {lng}'
+
     driver_profile = request.user.driver_profile
     driver_profile.current_location = current_location
     driver_profile.save(update_fields=['current_location'])
 
     Booking.objects.filter(driver=request.user, status=Booking.STATUS_ACCEPTED).update(current_location=current_location)
-    messages.success(request, 'Current location updated')
+
+    is_silent = request.POST.get('silent') == '1'
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    if is_ajax:
+        return JsonResponse({'ok': True, 'current_location': current_location})
+
+    if not is_silent:
+        messages.success(request, 'Current location updated')
     return redirect('driver_dashboard')

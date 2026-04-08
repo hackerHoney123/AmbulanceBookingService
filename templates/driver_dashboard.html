@@ -8,10 +8,13 @@
     <link rel="stylesheet" href="{% static 'css/driver_dashboard.css' %}">
 </head>
 <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
     <div class="topbar">
         <div>
             <h1>Driver Dashboard</h1>
-            <p>Accept patient bookings and keep your live location updated.</p>
+            <p>Accept requests, run active trips, and share your live location automatically.</p>
         </div>
         <div class="topbar-actions">
             <a class="link-btn" href="{% url 'driver_dashboard' %}">Refresh</a>
@@ -21,6 +24,21 @@
             <a class="link-btn" href="{% url 'logout' %}">Logout</a>
         </div>
     </div>
+
+    <section class="stats-strip">
+        <article class="mini-card">
+            <p>Pending Requests</p>
+            <h3>{{ stats.pending_pool }}</h3>
+        </article>
+        <article class="mini-card">
+            <p>Active Trips</p>
+            <h3>{{ stats.active }}</h3>
+        </article>
+        <article class="mini-card">
+            <p>Completed Trips</p>
+            <h3>{{ stats.completed }}</h3>
+        </article>
+    </section>
 
     {% if messages %}
         <div class="messages">
@@ -32,20 +50,38 @@
 
     <main class="grid-layout">
         <section class="panel">
-            <h2>Your Profile</h2>
-            <p><strong>Name:</strong> {{ request.user.username }}</p>
-            <p><strong>Phone:</strong> {{ driver_profile.phone|default:'N/A' }}</p>
-            <p><strong>Vehicle:</strong> {{ driver_profile.vehicle_number|default:'N/A' }}</p>
-            <p><strong>Current Location:</strong> {{ driver_profile.current_location|default:'Not set' }}</p>
+            <div class="section-head compact-head">
+                <div>
+                    <h2>Your Profile</h2>
+                    <p class="section-note">Driver identity, vehicle details, and live dispatch state.</p>
+                </div>
+            </div>
 
-            <form method="post" action="{% url 'update_driver_location' %}" class="form-grid compact">
-                {% csrf_token %}
-                <label>
-                    Update Current Location
-                    <input type="text" name="current_location" value="{{ driver_profile.current_location }}" placeholder="Enter your current location">
-                </label>
-                <button type="submit" class="primary-btn">Save Location</button>
-            </form>
+            <div class="profile-card">
+                <div class="profile-avatar">{{ request.user.username|first|upper }}</div>
+                <div class="profile-meta">
+                    <h3>{{ request.user.username }}</h3>
+                    <p>{{ request.user.email }}</p>
+                </div>
+            </div>
+
+            <div class="profile-details">
+                <p><strong>Phone:</strong> {{ driver_profile.phone|default:'N/A' }}</p>
+                <p><strong>Vehicle:</strong> {{ driver_profile.vehicle_number|default:'N/A' }}</p>
+                <p><strong>Current Location:</strong> {{ driver_profile.current_location|default:'Not set' }}</p>
+            </div>
+
+            <div class="profile-chips">
+                <span class="summary-chip muted-chip">{{ stats.pending_pool }} pending requests</span>
+                <span class="summary-chip muted-chip">{{ stats.active }} active trips</span>
+                <span class="summary-chip muted-chip">{{ stats.completed }} completed</span>
+            </div>
+
+            <div class="form-grid compact" style="margin-top: 0.75rem;">
+                <button type="button" id="startLiveLocation" class="primary-btn">Start Live Location</button>
+                <button type="button" id="stopLiveLocation" class="link-btn" style="display:none;">Stop Live Location</button>
+                <p id="liveLocationStatus" class="muted" style="margin: 0;">Live location is off.</p>
+            </div>
         </section>
 
         <section class="panel">
@@ -56,10 +92,32 @@
                         <strong>#{{ booking.id }}</strong>
                         <span class="status pending">Pending</span>
                     </div>
-                    <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
-                    <p><strong>Phone:</strong> {{ booking.patient_phone|default:'N/A' }}</p>
-                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
-                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
+                    <div class="booking-badges">
+                        <span class="summary-chip muted-chip">{{ booking.get_ambulance_type_display }}</span>
+                        <span class="summary-chip muted-chip">Requested {{ booking.created_at|date:'d M, h:i A' }}</span>
+                        <span class="summary-chip pending-chip">Awaiting acceptance</span>
+                    </div>
+
+                    <div class="booking-route">
+                        <div class="route-block pickup-block">
+                            <span class="route-label">Pickup</span>
+                            <p>{{ booking.pickup_address }}</p>
+                        </div>
+                        <div class="route-divider">
+                            <span class="route-dot"></span>
+                            <span class="route-line"></span>
+                            <span class="route-dot"></span>
+                        </div>
+                        <div class="route-block destination-block">
+                            <span class="route-label">Destination</span>
+                            <p>{{ booking.destination }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mini-meta-grid">
+                        <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
+                        <p><strong>Phone:</strong> {{ booking.patient_phone|default:'N/A' }}</p>
+                    </div>
                     <form method="post" action="{% url 'accept_booking' booking.id %}">
                         {% csrf_token %}
                         <button type="submit" class="accept-btn">Accept Booking</button>
@@ -71,22 +129,175 @@
         </section>
 
         <section class="panel full-width">
-            <h2>Accepted Bookings</h2>
-            {% for booking in my_bookings %}
+            <h2>Active Trips</h2>
+            {% for booking in active_bookings %}
                 <article class="booking-card">
                     <div class="booking-head">
                         <strong>#{{ booking.id }}</strong>
                         <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
                     </div>
-                    <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
-                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
-                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
-                    <p><strong>Live Location:</strong> {{ booking.current_location|default:'Not updated yet' }}</p>
+                    <div class="booking-badges">
+                        <span class="summary-chip accepted-chip">Live trip</span>
+                        <span class="summary-chip muted-chip">Accepted {{ booking.accepted_at|date:'d M, h:i A' }}</span>
+                        <span class="summary-chip muted-chip">{{ booking.get_ambulance_type_display }}</span>
+                    </div>
+
+                    <div class="booking-route">
+                        <div class="route-block pickup-block">
+                            <span class="route-label">Pickup</span>
+                            <p>{{ booking.pickup_address }}</p>
+                        </div>
+                        <div class="route-divider">
+                            <span class="route-dot"></span>
+                            <span class="route-line"></span>
+                            <span class="route-dot"></span>
+                        </div>
+                        <div class="route-block destination-block">
+                            <span class="route-label">Destination</span>
+                            <p>{{ booking.destination }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mini-meta-grid">
+                        <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
+                        <p><strong>Live Location:</strong> {{ booking.current_location|default:'Not updated yet' }}</p>
+                    </div>
+                    <form method="post" action="{% url 'complete_booking' booking.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="primary-btn">Mark Completed</button>
+                    </form>
                 </article>
             {% empty %}
-                <p class="muted">You have not accepted any bookings yet.</p>
+                <p class="muted">No active trips yet.</p>
+            {% endfor %}
+        </section>
+
+        <section class="panel full-width">
+            <div class="section-head compact-head">
+                <div>
+                    <h2>Booking History</h2>
+                    <p class="section-note">Completed trips and route history for quick reference.</p>
+                </div>
+            </div>
+            {% for booking in completed_bookings %}
+                <article class="booking-card compact-booking">
+                    <div class="booking-head">
+                        <strong>#{{ booking.id }}</strong>
+                        <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
+                    </div>
+                    <div class="booking-badges">
+                        <span class="summary-chip completed-chip">Completed trip</span>
+                        <span class="summary-chip muted-chip">{{ booking.get_ambulance_type_display }}</span>
+                    </div>
+
+                    <div class="booking-route">
+                        <div class="route-block pickup-block">
+                            <span class="route-label">Pickup</span>
+                            <p>{{ booking.pickup_address }}</p>
+                        </div>
+                        <div class="route-divider">
+                            <span class="route-dot"></span>
+                            <span class="route-line"></span>
+                            <span class="route-dot"></span>
+                        </div>
+                        <div class="route-block destination-block">
+                            <span class="route-label">Destination</span>
+                            <p>{{ booking.destination }}</p>
+                        </div>
+                    </div>
+
+                    <div class="mini-meta-grid">
+                        <p><strong>Patient:</strong> {{ booking.patient.username }}</p>
+                        <p><strong>Completed At:</strong> {{ booking.updated_at|date:'d M Y, h:i A' }}</p>
+                    </div>
+                </article>
+            {% empty %}
+                <p class="muted">No completed trips yet.</p>
             {% endfor %}
         </section>
     </main>
+
+    <script>
+        (function () {
+            const startBtn = document.getElementById('startLiveLocation');
+            const stopBtn = document.getElementById('stopLiveLocation');
+            const statusEl = document.getElementById('liveLocationStatus');
+            const csrfEl = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            let intervalId = null;
+
+            if (!startBtn || !stopBtn || !statusEl || !csrfEl) {
+                return;
+            }
+
+            function setStatus(text) {
+                statusEl.textContent = text;
+            }
+
+            async function sendPosition(position) {
+                const lat = position.coords.latitude.toFixed(6);
+                const lng = position.coords.longitude.toFixed(6);
+                const formData = new URLSearchParams();
+                formData.append('latitude', lat);
+                formData.append('longitude', lng);
+                formData.append('silent', '1');
+
+                const response = await fetch("{% url 'update_driver_location' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+                        'X-CSRFToken': csrfEl.value,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData.toString()
+                });
+
+                if (!response.ok) {
+                    throw new Error('Location update failed');
+                }
+
+                setStatus(`Live location active. Last update: ${new Date().toLocaleTimeString()}`);
+            }
+
+            function onGeoError(error) {
+                setStatus(`Location error: ${error.message}`);
+                stopLiveTracking();
+            }
+
+            function updateOnce() {
+                navigator.geolocation.getCurrentPosition(sendPosition, onGeoError, {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 5000
+                });
+            }
+
+            function startLiveTracking() {
+                if (!navigator.geolocation) {
+                    setStatus('Geolocation is not supported in this browser.');
+                    return;
+                }
+
+                startBtn.style.display = 'none';
+                stopBtn.style.display = 'inline-block';
+                setStatus('Requesting location permission...');
+
+                updateOnce();
+                intervalId = window.setInterval(updateOnce, 15000);
+            }
+
+            function stopLiveTracking() {
+                if (intervalId !== null) {
+                    window.clearInterval(intervalId);
+                    intervalId = null;
+                }
+                startBtn.style.display = 'inline-block';
+                stopBtn.style.display = 'none';
+                setStatus('Live location is off.');
+            }
+
+            startBtn.addEventListener('click', startLiveTracking);
+            stopBtn.addEventListener('click', stopLiveTracking);
+        })();
+    </script>
 </body>
 </html>

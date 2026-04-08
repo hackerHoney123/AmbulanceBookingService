@@ -11,5 +11,7 @@ urlpatterns = [
     path('dashboard/patient/', views.patient_dashboard, name='patient_dashboard'),
     path('dashboard/driver/', views.driver_dashboard, name='driver_dashboard'),
     path('booking/<int:booking_id>/accept/', views.accept_booking, name='accept_booking'),
+    path('booking/<int:booking_id>/complete/', views.complete_booking, name='complete_booking'),
+    path('booking/<int:booking_id>/cancel/', views.cancel_booking, name='cancel_booking'),
     path('driver/location/', views.update_driver_location, name='update_driver_location'),
 ]

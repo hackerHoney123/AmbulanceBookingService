@@ -8,10 +8,13 @@
     <link rel="stylesheet" href="{% static 'css/patient_dashboard.css' %}">
 </head>
 <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
     <div class="topbar">
         <div>
             <h1>Patient Dashboard</h1>
-            <p>Book an ambulance first. When a driver accepts, their details appear here.</p>
+            <p>Manage bookings, track driver location, and stay ready for quick dispatch.</p>
         </div>
         <div class="topbar-actions">
             <a class="link-btn" href="{% url 'patient_dashboard' %}">Refresh</a>
@@ -21,6 +24,25 @@
             <a class="link-btn" href="{% url 'logout' %}">Logout</a>
         </div>
     </div>
+
+    <section class="stats-strip">
+        <article class="mini-card">
+            <p>Total Bookings</p>
+            <h3>{{ stats.total }}</h3>
+        </article>
+        <article class="mini-card">
+            <p>Pending</p>
+            <h3>{{ stats.pending }}</h3>
+        </article>
+        <article class="mini-card">
+            <p>Accepted</p>
+            <h3>{{ stats.accepted }}</h3>
+        </article>
+        <article class="mini-card">
+            <p>Completed</p>
+            <h3>{{ stats.completed }}</h3>
+        </article>
+    </section>
 
     {% if messages %}
         <div class="messages">
@@ -32,21 +54,59 @@
 
     <main class="grid-layout">
         <section class="panel">
-            <h2>New Booking</h2>
-            <form method="post" class="form-grid">
+            <div class="section-head compact-head">
+                <div>
+                    <h2>Your Profile</h2>
+                    <p class="section-note">Quick account summary and booking activity at a glance.</p>
+                </div>
+            </div>
+
+            <div class="profile-card">
+                <div class="profile-avatar">{{ request.user.username|first|upper }}</div>
+                <div class="profile-meta">
+                    <h3>{{ request.user.username }}</h3>
+                    <p>{{ request.user.email }}</p>
+                </div>
+            </div>
+
+            <div class="profile-chips">
+                <span class="summary-chip muted-chip">Total {{ stats.total }} bookings</span>
+                <span class="summary-chip muted-chip">{{ stats.pending }} pending</span>
+                <span class="summary-chip muted-chip">{{ stats.completed }} completed</span>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="section-head compact-head">
+                <div>
+                    <h2>New Booking</h2>
+                    <p class="section-note">Share pickup and destination details to dispatch the nearest ambulance.</p>
+                </div>
+            </div>
+
+            <form method="post" class="form-grid booking-form">
                 {% csrf_token %}
-                <label>
-                    Pickup Address
-                    <input type="text" name="pickup_address" required>
-                </label>
-                <label>
-                    Destination
-                    <input type="text" name="destination" required>
-                </label>
+                <div class="field-group full-span">
+                    <label>
+                        Pickup Address
+                        <input type="text" name="pickup_address" placeholder="House no, street, area, landmark" autocomplete="street-address" required>
+                    </label>
+                    <p class="field-hint">Add the most accurate pickup point you can.</p>
+                </div>
+
+                <div class="field-group full-span">
+                    <label>
+                        Destination
+                        <input type="text" name="destination" placeholder="Hospital, clinic, or other destination" autocomplete="off" required>
+                    </label>
+                    <p class="field-hint">Mention the exact hospital or facility name if possible.</p>
+                </div>
+
                 <label>
                     Phone Number
-                    <input type="text" name="patient_phone">
+                    <input type="tel" name="patient_phone" placeholder="Your contact number" autocomplete="tel">
                 </label>
+
                 <label>
                     Ambulance Type
                     <select name="ambulance_type">
@@ -55,21 +115,79 @@
                         <option value="transfer">Inter-Hospital Transfer</option>
                     </select>
                 </label>
-                <button type="submit" class="primary-btn">Book Ambulance</button>
+
+                <div class="booking-summary full-span">
+                    <span class="summary-chip">Emergency ready</span>
+                    <span class="summary-chip muted-chip">Fast dispatch</span>
+                    <span class="summary-chip muted-chip">Live driver tracking</span>
+                </div>
+
+                <button type="submit" class="primary-btn booking-submit">Book Ambulance</button>
             </form>
         </section>
 
         <section class="panel">
-            <h2>Your Bookings</h2>
+            <div class="section-head">
+                <div>
+                    <h2>Booking History</h2>
+                    <p class="section-note">Filter your past and active ambulance requests.</p>
+                </div>
+                <form method="get" class="filter-form">
+                    <label for="statusFilter">Status</label>
+                    <select id="statusFilter" name="status" onchange="this.form.submit()">
+                        <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="accepted" {% if status_filter == 'accepted' %}selected{% endif %}>Accepted</option>
+                        <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>Completed</option>
+                    </select>
+                </form>
+            </div>
+
+            <div class="live-toggle-wrap">
+                <button type="button" id="autoRefreshToggle" class="link-btn">Start Auto Refresh</button>
+                <p id="autoRefreshStatus" class="muted">Auto refresh is off.</p>
+            </div>
+
             {% for booking in bookings %}
                 <article class="booking-card">
                     <div class="booking-head">
                         <strong>#{{ booking.id }}</strong>
                         <span class="status {{ booking.status }}">{{ booking.get_status_display }}</span>
                     </div>
-                    <p><strong>Pickup:</strong> {{ booking.pickup_address }}</p>
-                    <p><strong>Destination:</strong> {{ booking.destination }}</p>
-                    <p><strong>Ambulance:</strong> {{ booking.get_ambulance_type_display }}</p>
+                    <div class="booking-route">
+                        <div class="route-block pickup-block">
+                            <span class="route-label">Pickup</span>
+                            <p>{{ booking.pickup_address }}</p>
+                        </div>
+                        <div class="route-divider">
+                            <span class="route-dot"></span>
+                            <span class="route-line"></span>
+                            <span class="route-dot"></span>
+                        </div>
+                        <div class="route-block destination-block">
+                            <span class="route-label">Destination</span>
+                            <p>{{ booking.destination }}</p>
+                        </div>
+                    </div>
+
+                    <div class="booking-badges">
+                        <span class="summary-chip muted-chip">{{ booking.get_ambulance_type_display }}</span>
+                        <span class="summary-chip muted-chip">Requested {{ booking.created_at|date:'d M, h:i A' }}</span>
+                        {% if booking.status == 'pending' %}
+                            <span class="summary-chip status-chip pending-chip">Waiting for driver</span>
+                        {% elif booking.status == 'accepted' %}
+                            <span class="summary-chip status-chip accepted-chip">Driver assigned</span>
+                        {% else %}
+                            <span class="summary-chip status-chip completed-chip">Trip completed</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="status-rail">
+                        <span class="rail-step {% if booking.status == 'pending' %}active{% elif booking.status == 'accepted' or booking.status == 'completed' %}done{% endif %}">Booked</span>
+                        <span class="rail-step {% if booking.status == 'accepted' %}active{% elif booking.status == 'completed' %}done{% endif %}">Accepted</span>
+                        <span class="rail-step {% if booking.status == 'completed' %}active done{% endif %}">Completed</span>
+                    </div>
+
                     {% if booking.driver %}
                         <div class="driver-info">
                             <p><strong>Driver:</strong> {{ booking.driver.username }}</p>
@@ -83,11 +201,51 @@
                     {% else %}
                         <p class="muted">Waiting for a driver to accept this booking.</p>
                     {% endif %}
+
+                    {% if booking.status == 'pending' %}
+                        <form method="post" action="{% url 'cancel_booking' booking.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="danger-btn">Cancel Booking</button>
+                        </form>
+                    {% endif %}
                 </article>
             {% empty %}
                 <p class="muted">No bookings yet.</p>
             {% endfor %}
         </section>
     </main>
+
+    <script>
+        (function () {
+            const toggleBtn = document.getElementById('autoRefreshToggle');
+            const statusEl = document.getElementById('autoRefreshStatus');
+            let timerId = null;
+
+            if (!toggleBtn || !statusEl) {
+                return;
+            }
+
+            function setActive(isActive) {
+                toggleBtn.textContent = isActive ? 'Stop Auto Refresh' : 'Start Auto Refresh';
+                statusEl.textContent = isActive
+                    ? 'Auto refresh active (every 20s).'
+                    : 'Auto refresh is off.';
+            }
+
+            toggleBtn.addEventListener('click', function () {
+                if (timerId) {
+                    window.clearInterval(timerId);
+                    timerId = null;
+                    setActive(false);
+                    return;
+                }
+
+                setActive(true);
+                timerId = window.setInterval(function () {
+                    window.location.reload();
+                }, 20000);
+            });
+        })();
+    </script>
 </body>
 </html>
