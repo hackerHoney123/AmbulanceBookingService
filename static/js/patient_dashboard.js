@@ -214,7 +214,7 @@
 
   // Button ripple effects
   function setupButtonRipples() {
-    const buttons = document.querySelectorAll('button.primary-btn, button.danger-btn');
+    const buttons = document.querySelectorAll('button.primary-btn, button.danger-btn, button.action-btn');
     buttons.forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const ripple = document.createElement('span');
@@ -233,6 +233,250 @@
         setTimeout(() => ripple.remove(), 600);
       });
     });
+  }
+
+  // Booking form enhancements
+  function setupBookingFormEnhancements() {
+    const form = document.querySelector('.booking-form');
+    if (!form) {
+      return;
+    }
+
+    const pickup = form.querySelector('input[name="pickup_address"]');
+    const destination = form.querySelector('input[name="destination"]');
+    const phone = form.querySelector('input[name="patient_phone"]');
+    const pickupAccuracyInput = form.querySelector('input[name="pickup_accuracy_m"]');
+    const consent = document.getElementById('bookingConsent');
+    const submitBtn = document.getElementById('bookingSubmitBtn');
+    const readiness = document.getElementById('formReadiness');
+    const stepKpi = readiness && readiness.closest('.form-kpi')
+      ? readiness.closest('.form-kpi').querySelector('.kpi-item:last-child strong')
+      : null;
+
+    function updateFormState() {
+      if (!pickup || !destination || !submitBtn || !readiness) {
+        return;
+      }
+
+      const hasPickup = pickup.value.trim().length >= 8;
+      const hasDestination = destination.value.trim().length >= 3;
+      const hasConsent = consent ? consent.checked : true;
+      const completed = Number(hasPickup) + Number(hasDestination) + Number(hasConsent);
+      const ready = hasPickup && hasDestination && hasConsent;
+
+      readiness.textContent = ready ? 'Ready to dispatch' : 'Incomplete';
+      if (stepKpi) {
+        stepKpi.textContent = `${completed}/3`;
+      }
+
+      submitBtn.disabled = !ready;
+      submitBtn.style.opacity = ready ? '1' : '0.65';
+      submitBtn.style.cursor = ready ? 'pointer' : 'not-allowed';
+    }
+
+    [pickup, destination, consent].forEach((el) => {
+      if (!el) {
+        return;
+      }
+      el.addEventListener('input', updateFormState);
+      el.addEventListener('change', updateFormState);
+    });
+
+    if (phone) {
+      phone.addEventListener('input', () => {
+        phone.value = phone.value.replace(/[^0-9+\-() ]/g, '');
+      });
+    }
+
+    const useLocationBtn = document.getElementById('useCurrentLocation');
+    const ADDRESS_ACCURACY_THRESHOLD = 100;
+    const reverseGeocodeUrl = useLocationBtn ? useLocationBtn.dataset.reverseUrl : '';
+
+    async function reverseGeocodeWithTimeout(latitude, longitude, timeoutMs) {
+      if (!reverseGeocodeUrl) {
+        throw new Error('reverse geocode url missing');
+      }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const url = `${reverseGeocodeUrl}?lat=${encodeURIComponent(latitude)}&lng=${encodeURIComponent(longitude)}`;
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('reverse geocode failed');
+        }
+
+        const payload = await response.json();
+        if (!payload.ok || !payload.address) {
+          throw new Error('address not found');
+        }
+
+        return payload;
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    function getQuickPosition() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation unsupported'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve(position),
+          (error) => reject(error),
+          {
+            enableHighAccuracy: false,
+            timeout: 2500,
+            maximumAge: 300000,
+          }
+        );
+      });
+    }
+
+    function getPrecisePosition() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('Geolocation unsupported'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => resolve(position),
+          (error) => reject(error),
+          {
+            enableHighAccuracy: true,
+            timeout: 9000,
+            maximumAge: 0,
+          }
+        );
+      });
+    }
+
+    function watchForBetterPosition(currentBest, onBetter, onDone) {
+      if (!navigator.geolocation) {
+        onDone(currentBest);
+        return;
+      }
+
+      let best = currentBest;
+      const startedAt = Date.now();
+      const maxWatchMs = 10000;
+
+      const finalize = () => {
+        navigator.geolocation.clearWatch(watchId);
+        onDone(best);
+      };
+
+      const watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          const improved = !best || position.coords.accuracy + 15 < best.coords.accuracy;
+          if (improved) {
+            best = position;
+            onBetter(position);
+          }
+
+          if (position.coords.accuracy <= 45 || Date.now() - startedAt >= maxWatchMs) {
+            finalize();
+          }
+        },
+        () => finalize(),
+        {
+          enableHighAccuracy: true,
+          timeout: maxWatchMs,
+          maximumAge: 0,
+        }
+      );
+
+      window.setTimeout(finalize, maxWatchMs + 150);
+    }
+
+    async function applyPositionToPickup(position, buttonEl, phaseLabel) {
+      const { latitude, longitude, accuracy } = position.coords;
+      const accuracyMeters = Math.round(accuracy);
+      const isLowAccuracy = accuracyMeters > ADDRESS_ACCURACY_THRESHOLD;
+
+      if (pickupAccuracyInput) {
+        pickupAccuracyInput.value = String(accuracyMeters);
+      }
+
+      try {
+        const geoData = await reverseGeocodeWithTimeout(latitude, longitude, 2200);
+        pickup.value = geoData.address;
+        if (isLowAccuracy) {
+          buttonEl.textContent = `${phaseLabel}: Approx Address (+/- ${accuracyMeters}m)`;
+        } else {
+          buttonEl.textContent = `${phaseLabel}: Address (+/- ${accuracyMeters}m)`;
+        }
+      } catch (error) {
+        buttonEl.textContent = `${phaseLabel}: Address lookup failed, retry`;
+      }
+
+      updateFormState();
+    }
+
+    if (useLocationBtn && pickup) {
+      useLocationBtn.addEventListener('click', async () => {
+        if (!navigator.geolocation) {
+          useLocationBtn.textContent = 'Location unavailable';
+          return;
+        }
+
+        useLocationBtn.disabled = true;
+        useLocationBtn.textContent = 'Quick lock...';
+
+        let quickPosition = null;
+        try {
+          quickPosition = await getQuickPosition();
+          await applyPositionToPickup(quickPosition, useLocationBtn, 'Quick');
+        } catch (error) {
+          useLocationBtn.textContent = 'Quick lock failed';
+        }
+
+        try {
+          useLocationBtn.textContent = 'Refining GPS...';
+          const precisePosition = await getPrecisePosition();
+          const betterPosition = !quickPosition || precisePosition.coords.accuracy < quickPosition.coords.accuracy
+            ? precisePosition
+            : quickPosition;
+          await applyPositionToPickup(betterPosition, useLocationBtn, 'Refined');
+
+          watchForBetterPosition(
+            betterPosition,
+            (improvedPosition) => {
+              applyPositionToPickup(improvedPosition, useLocationBtn, 'Live refine');
+            },
+            () => {
+              useLocationBtn.disabled = false;
+            }
+          );
+          return;
+        } catch (error) {
+          if (pickupAccuracyInput) {
+            pickupAccuracyInput.value = '';
+          }
+          if (!pickup.value.trim()) {
+            useLocationBtn.textContent = 'Address not found, retry';
+          }
+          useLocationBtn.textContent = quickPosition ? useLocationBtn.textContent : 'Try Again';
+        }
+
+        useLocationBtn.disabled = false;
+        updateFormState();
+      });
+    }
+
+    updateFormState();
   }
 
   // Filter transitions
@@ -270,6 +514,7 @@
     setupButtonRipples();
     setupFilterTransitions();
     setupAutoRefreshAnimation();
+    setupBookingFormEnhancements();
   });
 
   // Re-observe for dynamic content

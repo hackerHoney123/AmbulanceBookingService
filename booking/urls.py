@@ -14,4 +14,5 @@ urlpatterns = [
     path('booking/<int:booking_id>/complete/', views.complete_booking, name='complete_booking'),
     path('booking/<int:booking_id>/cancel/', views.cancel_booking, name='cancel_booking'),
     path('driver/location/', views.update_driver_location, name='update_driver_location'),
+    path('geocode/reverse/', views.reverse_geocode_location, name='reverse_geocode_location'),
 ]

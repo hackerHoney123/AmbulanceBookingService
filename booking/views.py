@@ -5,12 +5,147 @@ from django.contrib.auth.models import Group, User
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+import json
+import re
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from .models import Booking, DriverProfile
 
 
 def _is_driver(user):
     return hasattr(user, 'driver_profile')
+
+
+LAT_LNG_PATTERN = re.compile(
+    r'Lat\s*([-+]?\d+(?:\.\d+)?),\s*Lng\s*([-+]?\d+(?:\.\d+)?)',
+    re.IGNORECASE,
+)
+
+
+def _extract_lat_lng(text):
+    if not text:
+        return None, None
+
+    match = LAT_LNG_PATTERN.search(text)
+    if not match:
+        return None, None
+
+    return match.group(1), match.group(2)
+
+
+def _is_coordinate_text(text):
+    lat, lng = _extract_lat_lng(text)
+    return bool(lat and lng)
+
+
+def _reverse_geocode(lat, lng):
+    resolved_free = _reverse_geocode_bigdatacloud(lat, lng)
+    if resolved_free:
+        return resolved_free
+
+    return _reverse_geocode_nominatim(lat, lng)
+
+
+def _reverse_geocode_bigdatacloud(lat, lng):
+    try:
+        query = urlencode({
+            'latitude': lat,
+            'longitude': lng,
+            'localityLanguage': 'en',
+        })
+        url = f'https://api.bigdatacloud.net/data/reverse-geocode-client?{query}'
+        request = Request(
+            url,
+            headers={
+                'Accept': 'application/json',
+                'User-Agent': 'RapidCareAmbulanceService/1.0',
+            },
+        )
+        with urlopen(request, timeout=3) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+
+        # Compose a human-readable address from available free API fields.
+        parts = [
+            (payload.get('locality') or '').strip(),
+            (payload.get('city') or '').strip(),
+            (payload.get('principalSubdivision') or '').strip(),
+            (payload.get('postcode') or '').strip(),
+            (payload.get('countryName') or '').strip(),
+        ]
+        cleaned = [part for part in parts if part]
+        if not cleaned:
+            return ''
+
+        return ', '.join(cleaned)
+    except Exception:
+        return ''
+
+
+def _reverse_geocode_nominatim(lat, lng):
+    try:
+        query = urlencode({'format': 'jsonv2', 'lat': lat, 'lon': lng})
+        url = f'https://nominatim.openstreetmap.org/reverse?{query}'
+        request = Request(
+            url,
+            headers={
+                'User-Agent': 'RapidCareAmbulanceService/1.0',
+                'Accept': 'application/json',
+            },
+        )
+        with urlopen(request, timeout=3) as response:
+            payload = json.loads(response.read().decode('utf-8'))
+
+        return (payload.get('display_name') or '').strip()
+    except Exception:
+        return ''
+
+
+def _sanitize_accuracy(value):
+    if not value:
+        return None
+
+    try:
+        accuracy = int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+    if accuracy <= 0:
+        return None
+
+    return accuracy
+
+
+def _with_accuracy_suffix(location_text, accuracy_m):
+    if not location_text:
+        return location_text
+
+    accuracy = _sanitize_accuracy(accuracy_m)
+    if accuracy is None:
+        return location_text
+
+    return f'{location_text} (±{accuracy}m)'
+
+
+@login_required(login_url='login')
+def reverse_geocode_location(request):
+    lat = request.GET.get('lat', '').strip()
+    lng = request.GET.get('lng', '').strip()
+
+    if not lat or not lng:
+        return JsonResponse({'ok': False, 'error': 'lat and lng are required'}, status=400)
+
+    try:
+        float(lat)
+        float(lng)
+    except ValueError:
+        return JsonResponse({'ok': False, 'error': 'Invalid coordinates'}, status=400)
+
+    address = _reverse_geocode(lat, lng)
+    if not address:
+        return JsonResponse({'ok': False, 'error': 'Address not found'}, status=404)
+
+    return JsonResponse({'ok': True, 'address': address})
 
 
 def home(request):
@@ -113,6 +248,20 @@ def patient_dashboard(request):
         destination = request.POST.get('destination', '').strip()
         patient_phone = request.POST.get('patient_phone', '').strip()
         ambulance_type = request.POST.get('ambulance_type', Booking.AMBULANCE_BASIC)
+        pickup_accuracy_m = request.POST.get('pickup_accuracy_m', '').strip()
+        pickup_accuracy = _sanitize_accuracy(pickup_accuracy_m)
+
+        lat, lng = _extract_lat_lng(pickup_address)
+        if lat and lng:
+            resolved_pickup = _reverse_geocode(lat, lng)
+            if resolved_pickup:
+                pickup_address = resolved_pickup
+
+        if _is_coordinate_text(pickup_address):
+            messages.error(request, 'Exact address not detected. Please retry location to get full address.')
+            return redirect('patient_dashboard')
+
+        pickup_address = _with_accuracy_suffix(pickup_address, pickup_accuracy_m)
 
         if not pickup_address or not destination:
             messages.error(request, 'Pickup address and destination are required')
@@ -257,8 +406,24 @@ def update_driver_location(request):
     current_location = request.POST.get('current_location', '').strip()
     lat = request.POST.get('latitude', '').strip()
     lng = request.POST.get('longitude', '').strip()
+    accuracy_m = request.POST.get('accuracy_m', '').strip()
+    accuracy_value = _sanitize_accuracy(accuracy_m)
+
     if lat and lng:
-        current_location = f'Lat {lat}, Lng {lng}'
+        should_reverse = not current_location or current_location.lower().startswith('lat ')
+        if should_reverse:
+            resolved_location = _reverse_geocode(lat, lng)
+            current_location = resolved_location or 'Location detected (address unavailable)'
+    elif current_location:
+        parsed_lat, parsed_lng = _extract_lat_lng(current_location)
+        if parsed_lat and parsed_lng:
+            resolved_location = _reverse_geocode(parsed_lat, parsed_lng)
+            current_location = resolved_location or 'Location detected (address unavailable)'
+
+    if _is_coordinate_text(current_location):
+        current_location = 'Location detected (address unavailable)'
+
+    current_location = _with_accuracy_suffix(current_location, accuracy_m)
 
     driver_profile = request.user.driver_profile
     driver_profile.current_location = current_location

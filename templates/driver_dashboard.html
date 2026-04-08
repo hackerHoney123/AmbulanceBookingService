@@ -309,12 +309,62 @@
                 statusEl.textContent = text;
             }
 
+            function getBestAccuratePosition() {
+                return new Promise((resolve, reject) => {
+                    if (!navigator.geolocation) {
+                        reject(new Error('Geolocation unsupported'));
+                        return;
+                    }
+
+                    let bestPosition = null;
+                    const desiredAccuracy = 60;
+                    const startedAt = Date.now();
+                    const maxWaitMs = 12000;
+
+                    const watchId = navigator.geolocation.watchPosition(
+                        (position) => {
+                            const isBetter = !bestPosition || position.coords.accuracy < bestPosition.coords.accuracy;
+                            if (isBetter) {
+                                bestPosition = position;
+                            }
+
+                            const timedOut = Date.now() - startedAt >= maxWaitMs;
+                            if (position.coords.accuracy <= desiredAccuracy || timedOut) {
+                                navigator.geolocation.clearWatch(watchId);
+                                resolve(bestPosition || position);
+                            }
+                        },
+                        (error) => {
+                            navigator.geolocation.clearWatch(watchId);
+                            reject(error);
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: maxWaitMs,
+                            maximumAge: 0
+                        }
+                    );
+
+                    window.setTimeout(() => {
+                        if (bestPosition) {
+                            navigator.geolocation.clearWatch(watchId);
+                            resolve(bestPosition);
+                        }
+                    }, maxWaitMs + 200);
+                });
+            }
+
             async function sendPosition(position) {
                 const lat = position.coords.latitude.toFixed(6);
                 const lng = position.coords.longitude.toFixed(6);
+                const accuracyMeters = Math.round(position.coords.accuracy);
+                const accuracyText = `${accuracyMeters}m`;
+
                 const formData = new URLSearchParams();
                 formData.append('latitude', lat);
                 formData.append('longitude', lng);
+                formData.append('current_location', '');
+                formData.append('accuracy_m', String(accuracyMeters));
                 formData.append('silent', '1');
 
                 const response = await fetch("{% url 'update_driver_location' %}", {
@@ -331,7 +381,7 @@
                     throw new Error('Location update failed');
                 }
 
-                setStatus(`Live location active. Last update: ${new Date().toLocaleTimeString()}`);
+                setStatus(`Live location active (accuracy ${accuracyText}). Last update: ${new Date().toLocaleTimeString()}`);
             }
 
             function onGeoError(error) {
@@ -339,12 +389,13 @@
                 stopLiveTracking();
             }
 
-            function updateOnce() {
-                navigator.geolocation.getCurrentPosition(sendPosition, onGeoError, {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 5000
-                });
+            async function updateOnce() {
+                try {
+                    const position = await getBestAccuratePosition();
+                    await sendPosition(position);
+                } catch (error) {
+                    onGeoError(error);
+                }
             }
 
             function startLiveTracking() {

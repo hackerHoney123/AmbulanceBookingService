@@ -153,31 +153,50 @@
                 </div>
             </div>
 
-            <form method="post" class="form-grid booking-form">
+            <div class="form-kpi">
+                <div class="kpi-item">
+                    <span class="kpi-label">Dispatch Window</span>
+                    <strong>5-12 min</strong>
+                </div>
+                <div class="kpi-item">
+                    <span class="kpi-label">Readiness</span>
+                    <strong id="formReadiness">Incomplete</strong>
+                </div>
+                <div class="kpi-item">
+                    <span class="kpi-label">Form Steps</span>
+                    <strong>1/3</strong>
+                </div>
+            </div>
+
+            <form method="post" class="form-grid booking-form booking-form-shell" novalidate>
                 {% csrf_token %}
+                <input type="hidden" name="pickup_accuracy_m" id="pickupAccuracyMeters" value="">
                 <div class="field-group full-span">
                     <label>
-                        Pickup Address
-                        <input type="text" name="pickup_address" placeholder="House no, street, area, landmark" autocomplete="street-address" required>
+                        <span class="label-text">Pickup Address</span>
+                        <div class="input-row">
+                            <input id="pickupAddress" type="text" name="pickup_address" placeholder="House no, street, area, landmark" autocomplete="street-address" maxlength="255" required>
+                            <button type="button" class="action-btn" id="useCurrentLocation" data-reverse-url="{% url 'reverse_geocode_location' %}">Use Current Location</button>
+                        </div>
                     </label>
                     <p class="field-hint">Add the most accurate pickup point you can.</p>
                 </div>
 
                 <div class="field-group full-span">
                     <label>
-                        Destination
-                        <input type="text" name="destination" placeholder="Hospital, clinic, or other destination" autocomplete="off" required>
+                        <span class="label-text">Destination</span>
+                        <input id="destinationAddress" type="text" name="destination" placeholder="Hospital, clinic, or other destination" autocomplete="off" maxlength="255" required>
                     </label>
                     <p class="field-hint">Mention the exact hospital or facility name if possible.</p>
                 </div>
 
                 <label>
-                    Phone Number
-                    <input type="tel" name="patient_phone" placeholder="Your contact number" autocomplete="tel">
+                    <span class="label-text">Phone Number</span>
+                    <input type="tel" name="patient_phone" placeholder="Your contact number" autocomplete="tel" inputmode="tel" maxlength="20" pattern="[0-9+\-() ]{7,20}">
                 </label>
 
                 <label>
-                    Ambulance Type
+                    <span class="label-text">Ambulance Type</span>
                     <select name="ambulance_type">
                         <option value="basic">Basic Life Support</option>
                         <option value="advanced">Advanced Life Support</option>
@@ -185,13 +204,47 @@
                     </select>
                 </label>
 
+                <div class="field-group full-span">
+                    <span class="label-text">Emergency Priority</span>
+                    <div class="segmented-options" role="radiogroup" aria-label="Emergency priority">
+                        <label class="option-card">
+                            <input type="radio" name="urgency_level" value="critical">
+                            <span>Critical</span>
+                        </label>
+                        <label class="option-card">
+                            <input type="radio" name="urgency_level" value="urgent" checked>
+                            <span>Urgent</span>
+                        </label>
+                        <label class="option-card">
+                            <input type="radio" name="urgency_level" value="stable">
+                            <span>Stable</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field-group full-span">
+                    <label>
+                        <span class="label-text">Additional Notes (Optional)</span>
+                        <textarea name="emergency_note" rows="3" maxlength="300" placeholder="Patient condition, floor number, gate details, or special instructions"></textarea>
+                    </label>
+                    <p class="field-hint">Helpful details speed up dispatch and pickup accuracy.</p>
+                </div>
+
                 <div class="booking-summary full-span">
                     <span class="summary-chip">Emergency ready</span>
                     <span class="summary-chip muted-chip">Fast dispatch</span>
                     <span class="summary-chip muted-chip">Live driver tracking</span>
                 </div>
 
-                <button type="submit" class="primary-btn booking-submit">Book Ambulance</button>
+                <label class="full-span consent-row">
+                    <input type="checkbox" id="bookingConsent" required>
+                    <span>I confirm these details are accurate for emergency dispatch.</span>
+                </label>
+
+                <div class="form-footer full-span">
+                    <p class="field-hint">Your request is shared only with available ambulance drivers.</p>
+                    <button type="submit" class="primary-btn booking-submit" id="bookingSubmitBtn">Request Ambulance Now</button>
+                </div>
             </form>
         </section>
 
