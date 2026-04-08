@@ -19,14 +19,21 @@ def home(request):
 
 def login_view(request):
     if request.method == 'POST':
-        email = request.POST.get('email', '').strip()
+        email = request.POST.get('email', '').strip().lower()
         password = request.POST.get('password', '')
 
-        try:
-            user_obj = User.objects.get(email=email)
-        except User.DoesNotExist:
+        if not email or not password:
+            messages.error(request, 'Please enter both email and password')
+            return render(request, 'login.html')
+
+        user_qs = User.objects.filter(email__iexact=email).order_by('-id')
+        if not user_qs.exists():
             messages.error(request, 'Incorrect email or password')
             return render(request, 'login.html')
+
+        # If duplicate email rows exist in legacy data, use the latest account
+        # to keep login behavior consistent instead of raising an exception.
+        user_obj = user_qs.first()
 
         user = authenticate(request, username=user_obj.username, password=password)
         if user is None:
