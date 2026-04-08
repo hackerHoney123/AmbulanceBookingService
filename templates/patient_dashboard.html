@@ -11,21 +11,54 @@
     <div class="bg-orb orb-a"></div>
     <div class="bg-orb orb-b"></div>
 
+    <nav class="site-navbar">
+        <div class="nav-brand">
+            <span class="brand-icon">🚑</span>
+            <div>
+                <h2>RapidCare</h2>
+                <p>Emergency Response Platform</p>
+            </div>
+        </div>
+        <button type="button" class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+        <div class="nav-links">
+            <a href="#dashboard" data-tab="dashboard">Dashboard</a>
+            <a href="#booking-form" data-tab="booking-form">Book</a>
+            <a href="#booking-history" data-tab="booking-history">History</a>
+            <a href="#patient-profile" data-tab="patient-profile">Profile</a>
+            <a href="#support" data-tab="support">Support</a>
+        </div>
+    </nav>
+
     <div class="topbar">
         <div>
-            <h1>Patient Dashboard</h1>
-            <p>Manage bookings, track driver location, and stay ready for quick dispatch.</p>
         </div>
         <div class="topbar-actions">
-            <a class="link-btn" href="{% url 'patient_dashboard' %}">Refresh</a>
             {% if request.user.is_staff or request.user.is_superuser %}
                 <a class="link-btn" href="{% url 'admin:index' %}">Django Admin</a>
             {% endif %}
-            <a class="link-btn" href="{% url 'logout' %}">Logout</a>
         </div>
     </div>
 
-    <section class="stats-strip">
+    <section class="feature-band tab-section" id="support" data-tab="support">
+        <article class="feature-card">
+            <h3>24x7 Dispatch</h3>
+            <p>Emergency team monitors bookings round the clock for immediate action.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Live Tracking</h3>
+            <p>Track assigned ambulance and driver updates in real-time.</p>
+        </article>
+        <article class="feature-card">
+            <h3>Priority Routing</h3>
+            <p>Critical requests receive fastest route optimization and dispatch priority.</p>
+        </article>
+    </section>
+
+    <section class="stats-strip tab-section" data-tab="dashboard">
         <article class="mini-card">
             <p>Total Bookings</p>
             <h3>{{ stats.total }}</h3>
@@ -53,30 +86,66 @@
     {% endif %}
 
     <main class="grid-layout">
-        <section class="panel">
+        <section class="panel tab-section" id="patient-profile" data-tab="patient-profile">
             <div class="section-head compact-head">
                 <div>
-                    <h2>Your Profile</h2>
-                    <p class="section-note">Quick account summary and booking activity at a glance.</p>
                 </div>
             </div>
 
-            <div class="profile-card">
-                <div class="profile-avatar">{{ request.user.username|first|upper }}</div>
-                <div class="profile-meta">
-                    <h3>{{ request.user.username }}</h3>
-                    <p>{{ request.user.email }}</p>
+            <div class="profile-top-grid">
+                <div class="profile-top-col">
+                    <div class="profile-card">
+                        <div class="profile-avatar">{{ request.user.username|first|upper }}</div>
+                        <div class="profile-meta">
+                            <h3>{{ request.user.username }}</h3>
+                            <p>{{ request.user.email }}</p>
+                            <div class="profile-meta-extras">
+                                <span class="verified-badge">✓ Verified Patient</span>
+                            </div>
+                        </div>
+                    </div>
+                    <a class="link-btn logout-btn" href="{% url 'logout' %}">Logout</a>
+                </div>
+
+                <div class="profile-top-col">
+                    <div class="profile-info-box">
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value">{{ request.user.email }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Member Since:</span>
+                            <span class="info-value">{{ request.user.date_joined|date:"d M, Y" }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Account Status:</span>
+                            <span class="info-value"><span class="status-badge active">Active</span></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="profile-chips">
-                <span class="summary-chip muted-chip">Total {{ stats.total }} bookings</span>
-                <span class="summary-chip muted-chip">{{ stats.pending }} pending</span>
-                <span class="summary-chip muted-chip">{{ stats.completed }} completed</span>
+            <div class="profile-stats-grid">
+                <div class="profile-stat-item">
+                    <div class="stat-number">{{ stats.total }}</div>
+                    <div class="stat-label">Total Bookings</div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-number">{{ stats.pending }}</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-number">{{ stats.accepted }}</div>
+                    <div class="stat-label">Accepted</div>
+                </div>
+                <div class="profile-stat-item">
+                    <div class="stat-number">{{ stats.completed }}</div>
+                    <div class="stat-label">Completed</div>
+                </div>
             </div>
         </section>
 
-        <section class="panel">
+        <section class="panel tab-section" id="booking-form" data-tab="booking-form">
             <div class="section-head compact-head">
                 <div>
                     <h2>New Booking</h2>
@@ -126,7 +195,7 @@
             </form>
         </section>
 
-        <section class="panel">
+        <section class="panel tab-section" id="booking-history" data-tab="booking-history">
             <div class="section-head">
                 <div>
                     <h2>Booking History</h2>
@@ -247,5 +316,6 @@
             });
         })();
     </script>
+    <script src="{% static 'js/patient_dashboard.js' %}"></script>
 </body>
 </html>
