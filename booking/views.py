@@ -25,12 +25,12 @@ def login_view(request):
         try:
             user_obj = User.objects.get(email=email)
         except User.DoesNotExist:
-            messages.error(request, 'User not found')
+            messages.error(request, 'Incorrect email or password')
             return render(request, 'login.html')
 
         user = authenticate(request, username=user_obj.username, password=password)
         if user is None:
-            messages.error(request, 'Invalid password')
+            messages.error(request, 'Incorrect email or password')
             return render(request, 'login.html')
 
         auth_login(request, user)
