@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swift Ambulance | Premium Emergency Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}"
+</head>
+<body>
+
+    <a href="tel:112" class="floating-btn pulse-animation">
+        <i class="fas fa-phone-alt"></i>
+    </a>
+
+    <header id="navbar">
+        <div class="logo">
+            <i class="fa-solid fa-truck-medical"></i> Swift Ambulance
+        </div>
+        <nav>
+            <a href="{% url 'login' %}" class="btn outline-btn"><i class="fas fa-user"></i> Login</a>
+        </nav>
+    </header>
+
+    <section class="hero" style="background: linear-gradient(rgba(11, 19, 43, 0.8), rgba(11, 19, 43, 0.6)), url('https://images.pexels.com/photos/8942080/pexels-photo-8942080.jpeg?auto=compress&cs=tinysrgb&w=1920') center/cover no-repeat;">
+        <div class="hero-content animate-on-scroll">
+            <div class="badge">24/7 Emergency Dispatch</div>
+            <h1>Fast & Reliable Medical Transport</h1>
+            <p>Fully equipped ICUs on wheels. When every second counts, trust our highly trained paramedics to get you to safety.</p>
+            <div class="hero-buttons">
+                <a href="{% url 'login' %}" class="btn primary-btn pulse-animation">Book Ambulance Now</a>
+                <a href="#services" class="btn secondary-btn">View Services</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-section">
+        <div class="stat-box animate-on-scroll">
+            <i class="fas fa-stopwatch"></i>
+            <h3 class="counter" data-target="15">0</h3>
+            <p>Min Avg Response Time</p>
+        </div>
+        <div class="stat-box animate-on-scroll" style="transition-delay: 0.2s;">
+            <i class="fas fa-truck-medical"></i>
+            <h3 class="counter" data-target="50">0</h3><span>+</span>
+            <p>Active Ambulances</p>
+        </div>
+        <div class="stat-box animate-on-scroll" style="transition-delay: 0.4s;">
+            <i class="fas fa-user-md"></i>
+            <h3 class="counter" data-target="120">0</h3><span>+</span>
+            <p>Expert Paramedics</p>
+        </div>
+    </section>
+
+    <section class="how-it-works">
+        <h2 class="section-title animate-on-scroll">How to Book</h2>
+        <div class="steps-container">
+            <div class="step-card animate-on-scroll">
+                <div class="step-icon"><i class="fas fa-sign-in-alt"></i></div>
+                <h3>1. Login/Register</h3>
+                <p>Quickly log into our secure portal to access the booking dashboard.</p>
+            </div>
+            <div class="step-card animate-on-scroll" style="transition-delay: 0.2s;">
+                <div class="step-icon"><i class="fas fa-map-marker-alt"></i></div>
+                <h3>2. Set Location</h3>
+                <p>Provide your pickup address and choose the destination hospital.</p>
+            </div>
+            <div class="step-card animate-on-scroll" style="transition-delay: 0.4s;">
+                <div class="step-icon"><i class="fas fa-truck-fast"></i></div>
+                <h3>3. Ambulance Dispatched</h3>
+                <p>A medically equipped vehicle is assigned and reaches you immediately.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="services" class="details">
+        <h2 class="section-title animate-on-scroll">Our Specialized Services</h2>
+        <div class="services-grid">
+            
+            <div class="service-card animate-on-scroll">
+                <div class="card-img" style="background-image: url('https://images.pexels.com/photos/3845129/pexels-photo-3845129.jpeg?auto=compress&cs=tinysrgb&w=500');"></div>
+                <div class="card-content">
+                    <h3>Basic Life Support (BLS)</h3>
+                    <p>For non-critical patients requiring basic monitoring and oxygen support during transit.</p>
+                </div>
+            </div>
+            
+            <div class="service-card animate-on-scroll" style="transition-delay: 0.2s;">
+                <div class="card-img" style="background-image: url('https://images.pexels.com/photos/2363311/pexels-photo-2363311.jpeg?auto=compress&cs=tinysrgb&w=500');"></div>
+                <div class="card-content">
+                    <h3>Advanced Life Support (ALS)</h3>
+                    <p>Mobile ICUs equipped with ventilators, defibrillators, and critical care paramedics.</p>
+                </div>
+            </div>
+            
+            <div class="service-card animate-on-scroll" style="transition-delay: 0.4s;">
+                <div class="card-img" style="background-image: url('https://images.pexels.com/photos/3845126/pexels-photo-3845126.jpeg?auto=compress&cs=tinysrgb&w=500');"></div>
+                <div class="card-content">
+                    <h3>Inter-Hospital Transfer</h3>
+                    <p>Seamless and monitored transport between medical facilities for continuous patient care.</p>
+                </div>
+            </div>
+            
+        </div>
+    </section>
+
+    <section class="cta-banner animate-on-scroll">
+        <h2>Don't Wait in an Emergency</h2>
+        <p>Register now so you are prepared when seconds matter.</p>
+        <a href="login.html" class="btn primary-btn btn-large">Create Your Account Today</a>
+    </section>
+
+    <footer>
+        <div class="footer-content">
+            <div class="footer-logo"><i class="fa-solid fa-truck-medical"></i> Swift Ambulance</div>
+            <p>Dedicated to saving lives with rapid response medical transport.</p>
+            <div class="social-icons">
+                <i class="fab fa-facebook"></i>
+                <i class="fab fa-twitter"></i>
+                <i class="fab fa-instagram"></i>
+            </div>
+            <p style="margin-top: 1rem; font-size: 0.8rem; color: #888;">&copy; 2026 Swift Ambulance Services. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="{% static 'js/script.js' %}"></script>
+</body>
+</html>
